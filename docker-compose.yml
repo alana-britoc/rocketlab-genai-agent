@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  agent:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - DB_PATH=/data/banco.db
+    volumes:
+      - ./banco.db:/data/banco.db:ro   
+    restart: unless-stopped
