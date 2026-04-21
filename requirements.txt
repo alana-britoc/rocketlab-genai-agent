@@ -1,0 +1,12 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+langchain==0.3.24
+langchain-google-genai==2.1.4
+langchain-community==0.3.22
+langgraph==0.3.31
+plotly==5.24.1
+pandas==2.2.3
+python-dotenv==1.1.0
+pydantic==2.11.3
+sqlparse==0.5.3
+openpyxl==3.1.5
