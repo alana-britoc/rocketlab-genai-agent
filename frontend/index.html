@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataLab · Agente E-Commerce</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+:root {
+  --ink: #0d0e12;
+  --ink2: #13151c;
+  --ink3: #1c1f2b;
+  --line: #252836;
+  --lime: #b8f53c;
+  --lime2: #d4fb6e;
+  --mute: #4a5068;
+  --mute2: #6b7491;
+  --snow: #e8eaf2;
+  --snow2: #c2c6d8;
+  --cyan: #3ce8e8;
+  --warn: #f5a623;
+  --ok: #10b981;
+  --err: #f43f5e;
+  --r: 4px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  font-family: 'IBM Plex Mono', monospace;
+  background: var(--ink);
+  color: var(--snow);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.grid-bg {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    linear-gradient(rgba(184,245,60,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(184,245,60,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: gridPulse 8s ease-in-out infinite;
+}
+@keyframes gridPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.scanline {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px);
+}
+
+/* ── HEADER ── */
+header {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; height: 52px;
+  border-bottom: 1px solid var(--line);
+  background: var(--ink2); flex-shrink: 0;
+}
+.logo-mark { display: flex; align-items: center; gap: 12px; }
+.logo-square {
+  width: 26px; height: 26px; background: var(--lime);
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 3px; padding: 4px; border-radius: 3px;
+}
+.logo-square span { background: var(--ink); display: block; border-radius: 1px; }
+.logo-square span:nth-child(3) { background: var(--ink2); }
+.logo-name { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: var(--snow); }
+.logo-name em { color: var(--lime); font-style: normal; }
+.sys-tag {
+  font-size: 10px; font-weight: 500; letter-spacing: 0.1em;
+  color: var(--mute2); padding: 3px 9px;
+  border: 1px solid var(--line); border-radius: var(--r); text-transform: uppercase;
+}
+
+.tab-nav { display: flex; gap: 3px; }
+.tab-btn {
+  background: transparent; border: 1px solid transparent;
+  color: var(--mute); font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; letter-spacing: 0.08em; padding: 5px 14px;
+  border-radius: var(--r); cursor: pointer; text-transform: uppercase;
+  transition: all 0.15s;
+}
+.tab-btn.ativo { background: var(--ink3); border-color: var(--line); color: var(--snow); }
+.tab-btn:hover:not(.ativo) { color: var(--snow2); }
+
+.header-direita { display: flex; align-items: center; gap: 8px; }
+.status-dot { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--mute2); letter-spacing: 0.05em; }
+.dot-live {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--lime);
+  box-shadow: 0 0 0 3px rgba(184,245,60,0.2);
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%,100%{box-shadow:0 0 0 3px rgba(184,245,60,0.2)}
+  50%{box-shadow:0 0 0 6px rgba(184,245,60,0.05)}
+}
+.hdr-btn {
+  background: transparent; border: 1px solid var(--line); color: var(--mute2);
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em;
+  padding: 5px 12px; border-radius: var(--r); cursor: pointer; text-transform: uppercase;
+  transition: all 0.15s; text-decoration: none; display: inline-flex; align-items: center;
+}
+.hdr-btn:hover { border-color: var(--lime); color: var(--lime); }
+
+/* ── LAYOUT ── */
+.layout { display: flex; flex: 1; overflow: hidden; position: relative; z-index: 1; }
+
+/* ── ASIDE ── */
+aside {
+  width: 240px; flex-shrink: 0; background: var(--ink2);
+  border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden;
+}
+.aside-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.aside-label {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.2em;
+  color: var(--mute); text-transform: uppercase; margin-bottom: 10px;
+}
+.cmd-pill {
+  display: block; width: 100%; background: transparent;
+  border: 1px solid var(--line); color: var(--mute2);
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  padding: 7px 10px; border-radius: var(--r); text-align: left;
+  cursor: pointer; margin-bottom: 5px; transition: all 0.12s; letter-spacing: 0.02em;
+}
+.cmd-pill:before { content: '> '; color: var(--lime); font-weight: 600; }
+.cmd-pill:hover { background: var(--ink3); border-color: var(--mute); color: var(--snow2); }
+.aside-scroll { flex: 1; overflow-y: auto; padding: 14px 16px; }
+.aside-scroll::-webkit-scrollbar { width: 3px; }
+.aside-scroll::-webkit-scrollbar-thumb { background: var(--line); }
+.history-entry { margin-bottom: 12px; }
+.history-n { font-size: 9px; letter-spacing: 0.15em; color: var(--mute); margin-bottom: 4px; text-transform: uppercase; }
+.history-sql {
+  font-size: 10px; color: var(--cyan); background: var(--ink3);
+  border-left: 2px solid var(--line); padding: 6px 8px;
+  border-radius: 0 var(--r) var(--r) 0; line-height: 1.6;
+  white-space: pre-wrap; overflow-x: hidden;
+}
+
+/* ── MAIN ── */
+main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── CHAT ── */
+#chat {
+  flex: 1; overflow-y: auto; padding: 28px 28px 16px;
+  display: flex; flex-direction: column; gap: 22px; scroll-behavior: smooth;
+}
+#chat::-webkit-scrollbar { width: 4px; }
+#chat::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+#chat.oculto { display: none; }
+
+/* ── WELCOME ── */
+.welcome {
+  display: flex; flex-direction: column; align-items: flex-start;
+  justify-content: center; flex: 1; padding: 20px 0 40px;
+}
+.welcome-pre { font-size: 10px; letter-spacing: 0.2em; color: var(--mute); text-transform: uppercase; margin-bottom: 10px; }
+.welcome-title { font-size: 28px; font-weight: 300; line-height: 1.25; color: var(--snow); margin-bottom: 6px; letter-spacing: -0.01em; }
+.welcome-title strong { font-weight: 600; color: var(--lime); }
+.welcome-sub { font-size: 13px; color: var(--mute2); margin-bottom: 28px; line-height: 1.7; max-width: 500px; font-family: 'IBM Plex Sans', sans-serif; }
+.welcome-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 560px; }
+.w-chip {
+  background: var(--ink2); border: 1px solid var(--line); color: var(--mute2);
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 10px 12px;
+  border-radius: var(--r); cursor: pointer; text-align: left;
+  transition: all 0.12s; letter-spacing: 0.02em; line-height: 1.4;
+}
+.w-chip .chip-tag { display: block; font-size: 9px; letter-spacing: 0.15em; color: var(--lime); text-transform: uppercase; margin-bottom: 3px; font-weight: 600; }
+.w-chip:hover { background: var(--ink3); border-color: var(--mute); color: var(--snow); }
+
+/* ── MENSAGENS ── */
+.msg-row { display: flex; gap: 14px; max-width: 860px; animation: msgIn 0.25s ease both; }
+@keyframes msgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.msg-row.usuario { flex-direction: row-reverse; align-self: flex-end; }
+.msg-glyph {
+  flex-shrink: 0; width: 30px; height: 30px; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+  border-radius: var(--r); color: var(--ink);
+}
+.msg-glyph.sys { background: var(--lime); }
+.msg-glyph.usr { background: var(--mute); color: var(--snow); }
+
+.bubble {
+  background: var(--ink2); border: 1px solid var(--line);
+  border-radius: var(--r) 8px 8px 8px; padding: 14px 16px;
+  font-size: 13px; line-height: 1.8; max-width: 720px;
+  font-family: 'IBM Plex Sans', sans-serif; color: var(--snow2);
+}
+.msg-row.usuario .bubble {
+  background: var(--ink3); border-color: var(--mute);
+  border-radius: 8px var(--r) 8px 8px; color: var(--snow);
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+}
+.bubble h1,.bubble h2,.bubble h3 {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--lime); margin: 14px 0 6px;
+}
+.bubble p { margin: 4px 0; }
+.bubble strong { color: var(--snow); font-weight: 500; }
+.bubble ul,.bubble ol { padding-left: 18px; margin: 6px 0; }
+.bubble li { margin: 3px 0; }
+.bubble code:not(pre code) {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  background: var(--ink3); color: var(--cyan); padding: 1px 6px;
+  border-radius: 3px; border: 1px solid var(--line);
+}
+
+/* ── SQL BLOCK ── */
+.sql-wrap { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.sql-bar { background: var(--ink3); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; }
+.sql-badge { font-size: 9px; letter-spacing: 0.2em; font-weight: 600; text-transform: uppercase; color: var(--mute2); }
+.sql-badge span { color: var(--lime); margin-right: 6px; }
+.copiar-sql {
+  background: transparent; border: 1px solid var(--line); color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 2px 8px;
+  border-radius: 3px; cursor: pointer; transition: all 0.12s; letter-spacing: 0.05em;
+}
+.copiar-sql:hover { color: var(--lime); border-color: var(--lime); }
+.sql-code {
+  background: #090b10; padding: 12px 14px; font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; color: #7ec8e3; white-space: pre-wrap; line-height: 1.7; overflow-x: auto;
+}
+
+/* ── TABELA ── */
+.tbl-wrap { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; max-height: 220px; overflow-y: auto; }
+.tbl-wrap::-webkit-scrollbar { width: 3px; }
+.tbl-wrap::-webkit-scrollbar-thumb { background: var(--line); }
+table.dt { width: 100%; border-collapse: collapse; font-size: 11px; }
+table.dt th {
+  background: var(--ink3); padding: 7px 12px; text-align: left; font-weight: 600;
+  font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--mute2);
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; white-space: nowrap;
+}
+table.dt td { padding: 6px 12px; border-bottom: 1px solid rgba(37,40,54,0.8); font-family: 'IBM Plex Mono', monospace; color: var(--snow2); white-space: nowrap; }
+table.dt tr:last-child td { border-bottom: none; }
+table.dt tr:hover td { background: rgba(184,245,60,0.03); }
+.dt-num { color: var(--cyan) !important; }
+
+.tbl-rodape { background: var(--ink3); border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; padding: 5px 12px; }
+.tbl-meta { font-size: 10px; letter-spacing: 0.08em; color: var(--mute); }
+.tbl-meta span { color: var(--lime); }
+.export-row { display: flex; gap: 6px; align-items: center; }
+.exp-btn {
+  background: transparent; border: 1px solid var(--line); color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 3px 8px;
+  border-radius: 3px; cursor: pointer; letter-spacing: 0.05em; transition: all 0.12s;
+}
+.exp-btn:hover { color: var(--lime); border-color: var(--lime); }
+
+/* tag anonimização */
+.tag-anon {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 20px; font-size: 9px;
+  letter-spacing: 0.12em; font-weight: 600; text-transform: uppercase;
+  background: rgba(99,102,241,0.1); color: #818cf8;
+  border: 1px solid rgba(99,102,241,0.25); margin-left: 8px;
+}
+.tag-anon:before { content: 'ANON'; }
+
+/* ── BARRA DE AVALIAÇÃO ── */
+.eval-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+}
+.eval-rotulo { font-weight: 600; color: var(--mute2); letter-spacing: 0.06em; font-size: 9px; text-transform: uppercase; }
+.eval-estrelas { color: var(--warn); letter-spacing: 2px; font-size: 13px; }
+.eval-pill {
+  padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+  border: 1px solid; letter-spacing: 0.05em; text-transform: uppercase;
+}
+.eval-pill.alta  { background: rgba(16,185,129,0.1);  color: #10b981; border-color: rgba(16,185,129,0.3); }
+.eval-pill.media { background: rgba(245,166,35,0.1);  color: #f5a623; border-color: rgba(245,166,35,0.3); }
+.eval-pill.baixa { background: rgba(244,63,94,0.1);   color: #f43f5e; border-color: rgba(244,63,94,0.3); }
+.eval-scores { font-size: 10px; color: var(--mute2); letter-spacing: 0.04em; }
+.eval-aviso { font-size: 10px; color: var(--warn); font-style: italic; }
+
+/* ── GRÁFICO ── */
+.chart-outer { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+
+/* ── LOADING ── */
+.typing-row { display: flex; gap: 14px; align-items: flex-start; animation: msgIn 0.2s ease both; }
+.typing-bubble {
+  background: var(--ink2); border: 1px solid var(--line);
+  border-radius: var(--r) 8px 8px 8px; padding: 14px 18px;
+  display: flex; align-items: center; gap: 12px;
+}
+.t-bar { display: flex; gap: 3px; align-items: flex-end; }
+.t-bar i { display: block; width: 3px; background: var(--lime); border-radius: 1px; animation: barUp 1s ease-in-out infinite; }
+.t-bar i:nth-child(1){height:8px;animation-delay:0s}
+.t-bar i:nth-child(2){height:14px;animation-delay:0.15s}
+.t-bar i:nth-child(3){height:10px;animation-delay:0.3s}
+.t-bar i:nth-child(4){height:16px;animation-delay:0.45s}
+.t-bar i:nth-child(5){height:8px;animation-delay:0.6s}
+@keyframes barUp{0%,100%{opacity:0.25;transform:scaleY(0.5)}50%{opacity:1;transform:scaleY(1)}}
+.t-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--mute2); letter-spacing: 0.06em; }
+.t-label .cursor-pisca { display: inline-block; width: 7px; height: 12px; background: var(--lime); margin-left: 3px; vertical-align: text-bottom; animation: pisca 1s step-end infinite; }
+@keyframes pisca{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── ERRO ── */
+.err-bubble {
+  background: rgba(244,63,94,0.06); border: 1px solid rgba(244,63,94,0.2);
+  color: #f47878; padding: 12px 16px; border-radius: var(--r) 8px 8px 8px;
+  font-size: 12px; font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── PAINEL INSIGHTS ── */
+#insights-panel { display: none; flex: 1; overflow-y: auto; padding: 28px; flex-direction: column; gap: 20px; }
+#insights-panel.ativo { display: flex; }
+#insights-panel::-webkit-scrollbar { width: 4px; }
+#insights-panel::-webkit-scrollbar-thumb { background: var(--line); }
+
+.insights-cabecalho { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
+.insights-titulo { font-size: 15px; font-weight: 600; letter-spacing: 0.04em; color: var(--snow); margin-bottom: 3px; }
+.insights-sub { font-size: 11px; color: var(--mute2); letter-spacing: 0.04em; }
+.btn-atualizar {
+  background: transparent; border: 1px solid var(--line); color: var(--mute2);
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 5px 14px;
+  border-radius: var(--r); cursor: pointer; letter-spacing: 0.08em; transition: all 0.15s; text-transform: uppercase;
+}
+.btn-atualizar:hover { border-color: var(--lime); color: var(--lime); }
+
+.insights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
+.insight-card { background: var(--ink2); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; animation: msgIn 0.3s ease both; }
+.insight-card-cabecalho { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.insight-card-titulo { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; color: var(--snow); margin-bottom: 2px; }
+.insight-card-desc { font-size: 10px; color: var(--mute2); letter-spacing: 0.04em; }
+.insight-card-corpo { padding: 6px 4px; }
+.insight-grafico { height: 230px; }
+.insight-vazio { padding: 20px; text-align: center; color: var(--mute); font-size: 11px; letter-spacing: 0.05em; }
+
+.insights-carregando {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 80px; font-size: 11px; color: var(--mute2); letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* ── INPUT ── */
+.input-zona { padding: 14px 20px 16px; border-top: 1px solid var(--line); background: var(--ink2); flex-shrink: 0; }
+.input-linha {
+  display: flex; align-items: flex-end; border: 1px solid var(--line);
+  border-radius: var(--r); background: var(--ink); transition: border-color 0.15s; overflow: hidden;
+}
+.input-linha:focus-within { border-color: var(--lime); }
+.input-prompt { display: flex; align-items: center; padding: 0 0 0 14px; color: var(--lime); font-size: 14px; font-weight: 600; flex-shrink: 0; user-select: none; }
+#msg-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--snow); font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px; line-height: 1.5; padding: 10px 12px 10px 8px;
+  resize: none; max-height: 100px; min-height: 22px; letter-spacing: 0.02em;
+}
+#msg-input::placeholder { color: var(--mute); }
+.send-area { padding: 8px 10px; flex-shrink: 0; display: flex; align-items: flex-end; }
+#send-btn { width: 32px; height: 32px; background: var(--lime); border: none; border-radius: 3px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.12s; }
+#send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+#send-btn:not(:disabled):hover { background: var(--lime2); }
+#send-btn svg { width: 14px; height: 14px; fill: var(--ink); }
+.input-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 7px; padding: 0 2px; }
+.input-meta-esq { font-size: 10px; color: var(--mute); letter-spacing: 0.06em; }
+.input-meta-esq kbd { font-family: 'IBM Plex Mono', monospace; background: var(--ink3); border: 1px solid var(--line); color: var(--mute2); padding: 1px 5px; border-radius: 3px; font-size: 10px; }
+.sessao-id { font-size: 10px; color: var(--mute); letter-spacing: 0.08em; }
+.sessao-id span { color: var(--mute2); }
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div class="scanline"></div>
+
+<header>
+  <div class="logo-mark">
+    <div class="logo-square"><span></span><span></span><span></span><span></span></div>
+    <div class="logo-name">DATA<em>LAB</em></div>
+    <div class="sys-tag">e-commerce · v2</div>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn ativo" onclick="trocarAba('chat')">/ chat</button>
+    <button class="tab-btn" onclick="trocarAba('insights')">/ insights</button>
+  </div>
+
+  <div class="header-direita">
+    <div class="status-dot">
+      <div class="dot-live"></div>
+      GEMINI 2.5 FLASH
+    </div>
+    <button class="hdr-btn" onclick="novaConversa()">/ nova conversa</button>
+    <a href="/docs" target="_blank" class="hdr-btn">/ docs</a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="aside-header">
+      <div class="aside-label">Consultas rápidas</div>
+      <div id="lista-sugestoes"></div>
+    </div>
+    <div class="aside-scroll">
+      <div class="aside-label">Histórico da sessão</div>
+      <div id="historico-queries">
+        <div style="font-size:11px;color:var(--mute);letter-spacing:0.04em;">— nenhuma query ainda —</div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ABA CHAT -->
+    <div id="chat">
+      <div class="welcome" id="boas-vindas">
+        <div class="welcome-pre">Interface de consulta</div>
+        <div class="welcome-title">Pergunte qualquer coisa<br><strong>sobre seus dados.</strong></div>
+        <div class="welcome-sub">Transforme perguntas em insights. Analise todo o ciclo da sua operação, de vendas a avaliações, conversando diretamente com seus dados.</div>
+        <div class="welcome-grid">
+          <button class="w-chip" onclick="enviarSugestao('Top 10 produtos mais vendidos')">
+            <span class="chip-tag">produtos</span>Top 10 mais vendidos
+          </button>
+          <button class="w-chip" onclick="enviarSugestao('Receita total por categoria')">
+            <span class="chip-tag">receita</span>Receita por categoria
+          </button>
+          <button class="w-chip" onclick="enviarSugestao('% de pedidos entregues no prazo por estado')">
+            <span class="chip-tag">logística</span>Entrega no prazo %
+          </button>
+          <button class="w-chip" onclick="enviarSugestao('Média de avaliação por vendedor — top 10')">
+            <span class="chip-tag">avaliações</span>Melhores vendedores
+          </button>
+          <button class="w-chip" onclick="enviarSugestao('Estados com maior atraso médio de entrega')">
+            <span class="chip-tag">atrasos</span>Atraso médio por estado
+          </button>
+          <button class="w-chip" onclick="enviarSugestao('Evolução mensal da receita')">
+            <span class="chip-tag">tendência</span>Receita mensal
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA INSIGHTS -->
+    <div id="insights-panel">
+      <div class="insights-cabecalho">
+        <div>
+          <div class="insights-titulo">Dashboard de Insights</div>
+          <div class="insights-sub">Análises automáticas executadas pelo agente — sem precisar perguntar</div>
+        </div>
+        <button class="btn-atualizar" onclick="carregarInsights()">+ atualizar</button>
+      </div>
+      <div id="insights-conteudo" class="insights-carregando">
+        <div class="t-bar" style="gap:4px">
+          <i style="height:8px;animation-delay:0s"></i>
+          <i style="height:14px;animation-delay:0.15s"></i>
+          <i style="height:10px;animation-delay:0.3s"></i>
+          <i style="height:16px;animation-delay:0.45s"></i>
+          <i style="height:8px;animation-delay:0.6s"></i>
+        </div>
+        <span>Rodando análises automáticas</span>
+      </div>
+    </div>
+
+    <!-- INPUT -->
+    <div class="input-zona" id="input-zona">
+      <div class="input-linha">
+        <div class="input-prompt">&gt;_</div>
+        <textarea id="msg-input" placeholder="faça uma pergunta ou escreva uma query SQL..." rows="1"></textarea>
+        <div class="send-area">
+          <button id="send-btn" onclick="enviarMensagem()">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="input-meta">
+        <div class="input-meta-esq"><kbd>Enter</kbd> enviar &nbsp;·&nbsp; <kbd>Shift+Enter</kbd> nova linha</div>
+        <div class="sessao-id" id="exibir-sessao"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── Estado ─────────────────────────────────────────────────────────────────
+let sessionId = localStorage.getItem('session_id') || gerarId();
+let historicoQueries = [];
+let abaAtual = 'chat';
+let insightsCarregados = false;
+
+function gerarId() {
+  const id = 'sess_' + Math.random().toString(36).substr(2, 8);
+  localStorage.setItem('session_id', id);
+  return id;
+}
+
+document.getElementById('exibir-sessao').innerHTML = 'sessão <span>' + sessionId + '</span>';
+
+// ── Init ───────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  carregarSugestoes();
+  const ta = document.getElementById('msg-input');
+  ta.addEventListener('input', () => {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 100) + 'px';
+  });
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensagem(); }
+  });
+});
+
+async function carregarSugestoes() {
+  try {
+    const res = await fetch('/suggestions');
+    const data = await res.json();
+    const lista = document.getElementById('lista-sugestoes');
+    data.suggestions.slice(0, 7).forEach(s => {
+      const btn = document.createElement('button');
+      btn.className = 'cmd-pill';
+      btn.textContent = s;
+      btn.onclick = () => enviarSugestao(s);
+      lista.appendChild(btn);
+    });
+  } catch(e) {}
+}
+
+// ── Abas ───────────────────────────────────────────────────────────────────
+function trocarAba(aba) {
+  abaAtual = aba;
+  const chatEl     = document.getElementById('chat');
+  const insightsEl = document.getElementById('insights-panel');
+  const inputEl    = document.getElementById('input-zona');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('ativo', b.textContent.trim().includes(aba));
+  });
+  if (aba === 'chat') {
+    chatEl.classList.remove('oculto');
+    insightsEl.classList.remove('ativo');
+    inputEl.style.display = '';
+  } else {
+    chatEl.classList.add('oculto');
+    insightsEl.classList.add('ativo');
+    inputEl.style.display = 'none';
+    carregarInsights();
+  }
+}
+
+// ── Insights ───────────────────────────────────────────────────────────────
+async function carregarInsights() {
+  const conteudo = document.getElementById('insights-conteudo');
+  conteudo.className = 'insights-carregando';
+  conteudo.innerHTML = `
+    <div class="t-bar" style="gap:4px">
+      <i style="height:8px;animation-delay:0s"></i>
+      <i style="height:14px;animation-delay:0.15s"></i>
+      <i style="height:10px;animation-delay:0.3s"></i>
+      <i style="height:16px;animation-delay:0.45s"></i>
+      <i style="height:8px;animation-delay:0.6s"></i>
+    </div>
+    <span>Rodando análises automáticas</span>`;
+  try {
+    const res = await fetch('/insights');
+    if (!res.ok) throw new Error('Falha ao carregar insights');
+    const data = await res.json();
+
+    conteudo.className = 'insights-grid';
+    conteudo.innerHTML = '';
+
+    data.insights.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'insight-card';
+      const cid = 'insight_' + item.id;
+      card.innerHTML = `
+        <div class="insight-card-cabecalho">
+          <div class="insight-card-titulo">${esc(item.title)}</div>
+          <div class="insight-card-desc">${esc(item.description)}</div>
+        </div>
+        <div class="insight-card-corpo">
+          ${item.error
+            ? `<div class="insight-vazio">// ${esc(item.error)}</div>`
+            : item.chart
+              ? `<div id="${cid}" class="insight-grafico"></div>`
+              : `<div class="insight-vazio">// sem dados suficientes para gráfico</div>`
+          }
+        </div>`;
+      conteudo.appendChild(card);
+
+      if (item.chart && !item.error) {
+        setTimeout(() => {
+          const el = document.getElementById(cid);
+          if (el) {
+            const layout = Object.assign({
+              paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+              font: { family: 'IBM Plex Mono, monospace', color: '#6b7491', size: 10 },
+              xaxis: { gridcolor: '#252836', zerolinecolor: '#252836' },
+              yaxis: { gridcolor: '#252836', zerolinecolor: '#252836' },
+              margin: { l: 44, r: 12, t: 12, b: 44 }
+            }, item.chart.layout || {});
+            Plotly.react(el, item.chart.data, layout, { responsive: true, displayModeBar: false });
+          }
+        }, 80);
+      }
+    });
+    insightsCarregados = true;
+  } catch(e) {
+    conteudo.className = '';
+    conteudo.innerHTML = `<div class="insight-vazio" style="padding:60px;">// ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Mensagens ──────────────────────────────────────────────────────────────
+function enviarSugestao(texto) {
+  trocarAba('chat');
+  document.getElementById('msg-input').value = texto;
+  enviarMensagem();
+}
+
+async function enviarMensagem() {
+  const input = document.getElementById('msg-input');
+  const texto = input.value.trim();
+  if (!texto) return;
+
+  ocultarBoasVindas();
+  adicionarMsgUsuario(texto);
+  input.value = '';
+  input.style.height = 'auto';
+  setCarregando(true);
+
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: texto, session_id: sessionId })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      adicionarErro(err.detail || 'Erro desconhecido.');
+      return;
+    }
+    const data = await res.json();
+    adicionarMsgAgente(data);
+    atualizarHistorico(data.sql_queries);
+  } catch(e) {
+    adicionarErro('Erro de conexão: ' + e.message);
+  } finally {
+    setCarregando(false);
+  }
+}
+
+function ocultarBoasVindas() {
+  const w = document.getElementById('boas-vindas');
+  if (w) w.remove();
+}
+
+function adicionarMsgUsuario(texto) {
+  const chat = document.getElementById('chat');
+  const d = document.createElement('div');
+  d.className = 'msg-row usuario';
+  d.innerHTML = `<div class="msg-glyph usr">USR</div><div class="bubble">${esc(texto)}</div>`;
+  chat.appendChild(d);
+  rolarParaBaixo();
+}
+
+let elCarregando = null;
+function setCarregando(on) {
+  document.getElementById('send-btn').disabled = on;
+  if (on) {
+    const chat = document.getElementById('chat');
+    elCarregando = document.createElement('div');
+    elCarregando.className = 'typing-row';
+    elCarregando.innerHTML = `
+      <div class="msg-glyph sys">SYS</div>
+      <div class="typing-bubble">
+        <div class="t-bar"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="t-label">analisando consulta<span class="cursor-pisca"></span></div>
+      </div>`;
+    chat.appendChild(elCarregando);
+    rolarParaBaixo();
+  } else if (elCarregando) { elCarregando.remove(); elCarregando = null; }
+}
+
+function adicionarMsgAgente(data) {
+  const chat = document.getElementById('chat');
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+
+  const html = (typeof marked !== 'undefined') ? marked.parse(data.response || '') : esc(data.response || '');
+  let inner = `<div class="msg-glyph sys">SYS</div><div class="bubble">${html}`;
+
+  // bloco SQL
+  if (data.sql_queries && data.sql_queries.length > 0) {
+    const sql = data.sql_queries[data.sql_queries.length - 1];
+    const sid = 'sql_' + Math.random().toString(36).substr(2, 5);
+    inner += `
+      <div class="sql-wrap">
+        <div class="sql-bar">
+          <div class="sql-badge"><span>//</span> sql gerado</div>
+          <button class="copiar-sql" onclick="copiarSql('${sid}')">copiar</button>
+        </div>
+        <div class="sql-code" id="${sid}">${esc(sql)}</div>
+      </div>`;
+  }
+
+  // tabela de resultados
+  if (data.query_results && data.query_results.length > 0) {
+    const qr = data.query_results[data.query_results.length - 1];
+    if (qr.data && qr.data.length > 0) inner += construirTabela(qr);
+  }
+
+  // barra de avaliação automática
+  if (data.evaluation) {
+    inner += construirBarraAvaliacao(data.evaluation);
+  }
+
+  inner += '</div>';
+  row.innerHTML = inner;
+
+  // gráfico
+  if (data.chart) {
+    const cid = 'plt_' + Math.random().toString(36).substr(2, 5);
+    const cDiv = document.createElement('div');
+    cDiv.className = 'chart-outer';
+    cDiv.innerHTML = `<div id="${cid}" style="height:300px;"></div>`;
+    row.querySelector('.bubble').appendChild(cDiv);
+    setTimeout(() => {
+      const el = document.getElementById(cid);
+      if (el) {
+        const layout = Object.assign({
+          paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+          font: { family: 'IBM Plex Mono, monospace', color: '#6b7491', size: 11 },
+          xaxis: { gridcolor: '#252836', zerolinecolor: '#252836' },
+          yaxis: { gridcolor: '#252836', zerolinecolor: '#252836' },
+          margin: { l: 48, r: 16, t: 16, b: 48 }
+        }, data.chart.layout || {});
+        Plotly.react(el, data.chart.data, layout, { responsive: true, displayModeBar: false });
+      }
+    }, 60);
+  }
+
+  chat.appendChild(row);
+  rolarParaBaixo();
+}
+
+// ── Barra de avaliação ─────────────────────────────────────────────────────
+function construirBarraAvaliacao(ev) {
+  const estrelas = '★'.repeat(ev.overall) + '☆'.repeat(5 - ev.overall);
+  const classePill = ev.confidence === 'alta' ? 'alta' : ev.confidence === 'media' ? 'media' : 'baixa';
+  const labelConf  = ev.confidence === 'alta' ? 'Confiança alta' : ev.confidence === 'media' ? 'Confiança média' : 'Confiança baixa';
+  const aviso = ev.caveat ? `<span class="eval-aviso">// ${esc(ev.caveat)}</span>` : '';
+  return `
+    <div class="eval-bar">
+      <span class="eval-rotulo">avaliação</span>
+      <span class="eval-estrelas">${estrelas}</span>
+      <span class="eval-pill ${classePill}">${labelConf}</span>
+      <span class="eval-scores">SQL ${ev.sql_quality}/5 · Relevância ${ev.answer_relevance}/5</span>
+      ${aviso}
+    </div>`;
+}
+
+// ── Tabela de dados ────────────────────────────────────────────────────────
+function construirTabela(qr) {
+  const cols = qr.columns;
+  const rows = qr.data.slice(0, 100);
+  const isNum = v => v !== null && v !== '' && !isNaN(Number(v));
+
+  let th = cols.map(c => `<th>${esc(c)}</th>`).join('');
+  let tbody = rows.map(r =>
+    '<tr>' + cols.map(c => {
+      const val = r[c] ?? '';
+      const cls = isNum(val) ? ' class="dt-num"' : '';
+      return `<td${cls}>${esc(String(val))}</td>`;
+    }).join('') + '</tr>'
+  ).join('');
+
+  const q64 = btoa(unescape(encodeURIComponent(qr.query || '')));
+  const tagAnon = qr.anonymized ? `<span class="tag-anon"></span>` : '';
+
+  return `
+    <div class="tbl-wrap">
+      <table class="dt"><thead><tr>${th}</tr></thead><tbody>${tbody}</tbody></table>
+    </div>
+    <div class="tbl-rodape">
+      <div class="tbl-meta"><span>${qr.rows}</span> linha${qr.rows !== 1 ? 's' : ''} retornada${qr.rows !== 1 ? 's' : ''}${tagAnon}</div>
+      <div class="export-row">
+        <button class="exp-btn" onclick="exportarDados('csv','${q64}')">↓ csv</button>
+        <button class="exp-btn" onclick="exportarDados('excel','${q64}')">↓ xlsx</button>
+      </div>
+    </div>`;
+}
+
+function adicionarErro(msg) {
+  const chat = document.getElementById('chat');
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+  row.innerHTML = `<div class="msg-glyph sys" style="background:rgba(244,63,94,0.2);color:#f47878;">ERR</div><div class="err-bubble">// ${esc(msg)}</div>`;
+  chat.appendChild(row);
+  rolarParaBaixo();
+}
+
+// ── Utilitários ────────────────────────────────────────────────────────────
+function rolarParaBaixo() {
+  const c = document.getElementById('chat');
+  c.scrollTop = c.scrollHeight;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function copiarSql(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const btn = document.querySelector(`#${id}`).previousElementSibling.querySelector('.copiar-sql');
+    if (btn) { btn.textContent = 'copiado!'; setTimeout(() => btn.textContent = 'copiar', 1500); }
+  });
+}
+
+function atualizarHistorico(queries) {
+  if (!queries || !queries.length) return;
+  historicoQueries = [...historicoQueries, ...queries];
+  const el = document.getElementById('historico-queries');
+  el.innerHTML = historicoQueries.slice(-8).map((q, i) => `
+    <div class="history-entry">
+      <div class="history-n">query #${i+1}</div>
+      <div class="history-sql">${esc(q.length > 180 ? q.slice(0, 180) + '…' : q)}</div>
+    </div>`).join('');
+}
+
+async function exportarDados(formato, enc) {
+  const query = decodeURIComponent(escape(atob(enc)));
+  const res = await fetch(`/export/${formato}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query })
+  });
+  if (!res.ok) { alert('Erro ao exportar.'); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = formato === 'csv' ? 'dados.csv' : 'dados.xlsx';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function novaConversa() {
+  if (historicoQueries.length > 0 && !confirm('Iniciar nova conversa? O histórico atual será perdido.')) return;
+  sessionId = gerarId();
+  historicoQueries = [];
+  document.getElementById('exibir-sessao').innerHTML = 'sessão <span>' + sessionId + '</span>';
+  document.getElementById('chat').innerHTML = `
+    <div class="welcome" id="boas-vindas">
+      <div class="welcome-pre">Nova sessão iniciada</div>
+      <div class="welcome-title">Pronto para sua<br><strong>próxima consulta.</strong></div>
+    </div>`;
+  document.getElementById('historico-queries').innerHTML =
+    '<div style="font-size:11px;color:var(--mute);letter-spacing:0.04em;">— nenhuma query ainda —</div>';
+  trocarAba('chat');
+}
+</script>
+</body>
+</html>
